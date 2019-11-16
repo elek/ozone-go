@@ -127,11 +127,15 @@ func KeyFromProto(keyProto *ozone_proto.KeyInfo) Key {
 	return result
 }
 func (om *OmClient) ListKeys(volume string, bucket string) ([]Key, error) {
+	return om.ListKeysPrefix(volume, bucket, "")
+}
+
+func (om *OmClient) ListKeysPrefix(volume string, bucket string, prefix string) ([]Key, error) {
 
 	req := ozone_proto.ListKeysRequest{
 		VolumeName: &volume,
 		BucketName: &bucket,
-		Prefix:     ptr(""),
+		Prefix:     ptr(prefix),
 		Count:      ptri(1000),
 	}
 
