@@ -2,7 +2,8 @@ package main
 
 import (
 	"fmt"
-	ozone "github.com/elek/ozone-go/api"
+	"github.com/elek/ozone-go/api"
+	"github.com/elek/ozone-go/api/common"
 	"github.com/hanwen/go-fuse/fuse"
 	"github.com/hanwen/go-fuse/fuse/nodefs"
 	"github.com/hanwen/go-fuse/fuse/pathfs"
@@ -18,20 +19,19 @@ var date string
 
 type OzoneFs struct {
 	pathfs.FileSystem
-	OmClient *ozone.OmClient
-	Volume   string
-	Bucket   string
+	ozoneClient *api.OzoneClient
+	Volume      string
+	Bucket      string
 }
 
 func (me *OzoneFs) GetAttr(name string, context *fuse.Context) (*fuse.Attr, fuse.Status) {
-
 	if name == "" {
 		return &fuse.Attr{
 			Mode: fuse.S_IFDIR | 0755,
 		}, fuse.OK
 	}
 
-	key, err := me.OmClient.GetKey(me.Volume, me.Bucket, name)
+	key, err := me.ozoneClient.InfoKey(me.Volume, me.Bucket, name)
 	if err != nil {
 		fmt.Println("Error with getting key: " + name + " " + err.Error())
 		return nil, fuse.ENOENT
@@ -53,12 +53,12 @@ func (me *OzoneFs) GetAttr(name string, context *fuse.Context) (*fuse.Attr, fuse
 
 func (me *OzoneFs) OpenDir(name string, context *fuse.Context) (c []fuse.DirEntry, code fuse.Status) {
 
-	keys, err := me.OmClient.ListKeysPrefix(me.Volume, me.Bucket, name)
+	keys, err := me.ozoneClient.ListKeysPrefix(me.Volume, me.Bucket, name)
 	if err != nil {
 		panic(err)
 	}
 	result := make([]fuse.DirEntry, 0)
-	var lastDir = "";
+	var lastDir = ""
 	for _, key := range keys {
 		keyName := key.Name
 		relative := keyName[len(name):]
@@ -68,7 +68,7 @@ func (me *OzoneFs) OpenDir(name string, context *fuse.Context) (c []fuse.DirEntr
 			if name != lastDir {
 				entry := fuse.DirEntry{Name: name, Mode: fuse.S_IFDIR}
 				result = append(result, entry)
-				lastDir = name;
+				lastDir = name
 			}
 		} else {
 			entry := fuse.DirEntry{Name: relative, Mode: fuse.S_IFREG}
@@ -81,14 +81,13 @@ func (me *OzoneFs) OpenDir(name string, context *fuse.Context) (c []fuse.DirEntr
 }
 
 func (me *OzoneFs) Open(name string, flags uint32, context *fuse.Context) (file nodefs.File, code fuse.Status) {
-	if name != "file.txt" {
-		return nil, fuse.ENOENT
+	key, err := me.ozoneClient.InfoKey(me.Volume, me.Bucket, name)
+	if err != nil {
+		return nil, fuse.EACCES
 	}
-	if flags&fuse.O_ANYWRITE != 0 {
-		return nil, fuse.EPERM
-	}
-	return nodefs.NewDataFile([]byte(name)), fuse.OK
+	return CreateOzoneFile(me.ozoneClient, key), fuse.OK
 }
+
 
 func main() {
 	app := cli.NewApp()
@@ -105,9 +104,9 @@ func main() {
 		},
 	}
 	app.Action = func(c *cli.Context) error {
-		client := ozone.CreateOmClient(c.String("om"))
+		client := api.CreateOzoneClient(c.String("om"))
 		mountPoint := "/tmp/ozone"
-		fs := &OzoneFs{FileSystem: pathfs.NewDefaultFileSystem(), OmClient: &client, Volume: "vol1", Bucket: "bucket1"}
+		fs := &OzoneFs{FileSystem: pathfs.NewDefaultFileSystem(), ozoneClient: client, Volume: "vol1", Bucket: "bucket1"}
 		nfs := pathfs.NewPathNodeFs(fs, nil)
 		server, _, err := nodefs.MountRoot(mountPoint, nfs.Root(), nil)
 		if err != nil {

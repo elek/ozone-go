@@ -3,7 +3,7 @@ package main
 import (
 	"C"
 	"encoding/json"
-	pkg "github.com/elek/ozone-go/api"
+	"github.com/elek/ozone-go/api/om"
 	"math/rand"
 )
 
@@ -11,11 +11,11 @@ func main() {
 
 }
 
-var connections = make(map[C.int]*pkg.OmClient)
+var connections = make(map[C.int]*om.OmClient)
 
 func GetKey(omhost *C.char, volume *C.char, bucket *C.char, key *C.char) {
 	println("Getting key")
-	omClient := pkg.CreateOmClient(C.GoString(omhost))
+	omClient := om.CreateOmClient(C.GoString(omhost))
 	println("Connected to host " + C.GoString(omhost))
 	k, err := omClient.GetKey(C.GoString(volume), C.GoString(bucket), C.GoString(key))
 	if err != nil {
@@ -32,7 +32,7 @@ func GetKey(omhost *C.char, volume *C.char, bucket *C.char, key *C.char) {
 
 //export CreateOmClient
 func CreateOmClient(omhost *C.char) C.int {
-	client := pkg.CreateOmClient(C.GoString(omhost))
+	client := om.CreateOmClient(C.GoString(omhost))
 
 	identifier := C.int(rand.Int63())
 	connections[identifier] = &client

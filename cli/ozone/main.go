@@ -4,7 +4,7 @@ package main
 import (
 	"encoding/json"
 	"fmt"
-	pkg "github.com/elek/ozone-go/api"
+	"github.com/elek/ozone-go/api"
 	"github.com/urfave/cli"
 	"log"
 	"os"
@@ -44,8 +44,8 @@ func main() {
 					Aliases: []string{"ls"},
 					Usage:   "List volumes.",
 					Action: func(c *cli.Context) error {
-						omClient := pkg.CreateOmClient(c.String("om"))
-						volumes, err := omClient.ListVolumes()
+						ozoneClient := api.CreateOzoneClient(c.GlobalString("om"))
+						volumes, err := ozoneClient.ListVolumes()
 						if err != nil {
 							return err
 						}
@@ -60,9 +60,9 @@ func main() {
 					Aliases: []string{"mk"},
 					Usage:   "Create volume.",
 					Action: func(c *cli.Context) error {
-						omClient := pkg.CreateOmClient(c.GlobalString("om"))
+						ozoneClient := api.CreateOzoneClient(c.GlobalString("om"))
 						address := OzoneObjectAddressFromString(c.Args().Get(0))
-						err := omClient.CreateVolume(*address.Volume)
+						err := ozoneClient.CreateVolume(*address.Volume)
 						if err != nil {
 							return err
 						}
@@ -84,9 +84,9 @@ func main() {
 					Aliases: []string{"mk"},
 					Usage:   "Create bucket.",
 					Action: func(c *cli.Context) error {
-						omClient := pkg.CreateOmClient(c.GlobalString("om"))
+						ozoneClient := api.CreateOzoneClient(c.GlobalString("om"))
 						address := OzoneObjectAddressFromString(c.Args().Get(0))
-						err := omClient.CreateBucket(*address.Volume, *address.Bucket)
+						err := ozoneClient.CreateBucket(*address.Volume, *address.Bucket)
 						if err != nil {
 							return err
 						}
@@ -108,9 +108,9 @@ func main() {
 					Aliases: []string{"ls"},
 					Usage:   "List keys.",
 					Action: func(c *cli.Context) error {
-						omClient := pkg.CreateOmClient(c.GlobalString("om"))
+						ozoneClient := api.CreateOzoneClient(c.GlobalString("om"))
 						address := OzoneObjectAddressFromString(c.Args().Get(0))
-						keys, err := omClient.ListKeys(*address.Volume, *address.Bucket)
+						keys, err := ozoneClient.ListKeys(*address.Volume, *address.Bucket)
 						if err != nil {
 							return err
 						}
@@ -124,13 +124,13 @@ func main() {
 					},
 				},
 				{
-					Name:    "get",
+					Name:    "info",
 					Aliases: []string{"show"},
 					Usage:   "Show information about one key",
 					Action: func(c *cli.Context) error {
-						omClient := pkg.CreateOmClient(c.GlobalString("om"))
+						ozoneClient := api.CreateOzoneClient(c.GlobalString("om"))
 						address := OzoneObjectAddressFromString(c.Args().Get(0))
-						key, err := omClient.GetKey(*address.Volume, *address.Bucket, *address.Key)
+						key, err := ozoneClient.InfoKey(*address.Volume, *address.Bucket, *address.Key)
 						if err != nil {
 							return err
 						}
@@ -148,27 +148,11 @@ func main() {
 					Aliases: []string{"c"},
 					Usage:   "Show content of a file",
 					Action: func(c *cli.Context) error {
-						omClient := pkg.CreateOmClient(c.GlobalString("om"))
+						ozoneClient := api.CreateOzoneClient(c.GlobalString("om"))
 						address := OzoneObjectAddressFromString(c.Args().Get(0))
-						key, err := omClient.GetKey(*address.Volume, *address.Bucket, *address.Key)
+						_, err := ozoneClient.GetKey(*address.Volume, *address.Bucket, *address.Key, os.Stdout)
 						if err != nil {
 							return err
-						}
-
-						location := key.Locations[0]
-						pipeline := location.Pipeline
-
-						dnClient, err := pkg.CreateDatanodeClient(pipeline)
-						chunks, err := dnClient.GetBlock(location.BlockID)
-						if err != nil {
-							return err
-						}
-						for _, chunk := range chunks {
-							data, err := dnClient.ReadChunk(location.BlockID, chunk)
-							if err != nil {
-								return err
-							}
-							fmt.Println(string(data))
 						}
 
 						return nil
