@@ -38,7 +38,6 @@ This is similar to Namenode for Ozone.
 
 import "hdds.proto";
 import "Security.proto";
-import "FSProtos.proto";
 
 enum Type {
   CreateVolume = 11;
@@ -61,11 +60,8 @@ enum Type {
   ListKeys = 35;
   CommitKey = 36;
   AllocateBlock = 37;
+  DeleteKeys = 38;
 
-  CreateS3Bucket = 41;
-  DeleteS3Bucket = 42;
-  InfoS3Bucket = 43;
-  ListS3Buckets = 44;
   InitiateMultiPartUpload = 45;
   CommitMultiPartUpload = 46;
   CompleteMultiPartUpload = 47;
@@ -95,6 +91,7 @@ enum Type {
   ListMultipartUploads = 82;
 
   ListTrash = 91;
+  RecoverTrash = 92;
 }
 
 message OMRequest {
@@ -129,11 +126,8 @@ message OMRequest {
   optional ListKeysRequest                  listKeysRequest                = 35;
   optional CommitKeyRequest                 commitKeyRequest               = 36;
   optional AllocateBlockRequest             allocateBlockRequest           = 37;
+  optional DeleteKeysRequest                deleteKeysRequest              = 38;
 
-  optional S3CreateBucketRequest            createS3BucketRequest          = 41;
-  optional S3DeleteBucketRequest            deleteS3BucketRequest          = 42;
-  optional S3BucketInfoRequest              infoS3BucketRequest            = 43;
-  optional S3ListBucketsRequest             listS3BucketsRequest           = 44;
   optional MultipartInfoInitiateRequest     initiateMultiPartUploadRequest = 45;
   optional MultipartCommitUploadPartRequest commitMultiPartUploadRequest   = 46;
   optional MultipartUploadCompleteRequest   completeMultiPartUploadRequest = 47;
@@ -166,6 +160,7 @@ message OMRequest {
   optional ListMultipartUploadsRequest      listMultipartUploadsRequest    = 83;
 
   optional ListTrashRequest                 listTrashRequest               = 91;
+  optional RecoverTrashRequest              RecoverTrashRequest            = 92;
 }
 
 message OMResponse {
@@ -203,11 +198,8 @@ message OMResponse {
   optional ListKeysResponse                  listKeysResponse              = 35;
   optional CommitKeyResponse                 commitKeyResponse             = 36;
   optional AllocateBlockResponse             allocateBlockResponse         = 37;
+  optional DeleteKeysResponse                deleteKeysResponse            = 38;
 
-  optional S3CreateBucketResponse            createS3BucketResponse        = 41;
-  optional S3DeleteBucketResponse            deleteS3BucketResponse        = 42;
-  optional S3BucketInfoResponse              infoS3BucketResponse          = 43;
-  optional S3ListBucketsResponse             listS3BucketsResponse         = 44;
   optional MultipartInfoInitiateResponse   initiateMultiPartUploadResponse = 45;
   optional MultipartCommitUploadPartResponse commitMultiPartUploadResponse = 46;
   optional MultipartUploadCompleteResponse completeMultiPartUploadResponse = 47;
@@ -237,6 +229,7 @@ message OMResponse {
   optional ListMultipartUploadsResponse listMultipartUploadsResponse = 82;
 
   optional ListTrashResponse                  listTrashResponse            = 91;
+  optional RecoverTrashResponse               RecoverTrashResponse         = 92;
 }
 
 enum Status {
@@ -261,8 +254,6 @@ enum Status {
     METADATA_ERROR = 19;
     OM_NOT_INITIALIZED = 20;
     SCM_VERSION_MISMATCH_ERROR = 21;
-    S3_BUCKET_NOT_FOUND = 22;
-    S3_BUCKET_ALREADY_EXISTS = 23;
 
     INITIATE_MULTIPART_UPLOAD_ERROR = 24;
     MULTIPART_UPLOAD_PARTFILE_ERROR = 25;
@@ -296,8 +287,6 @@ enum Status {
     TIMEOUT = 49;
     PREFIX_NOT_FOUND=50;
 
-    S3_BUCKET_INVALID_LENGTH = 51; // s3 bucket invalid length.
-
     RATIS_ERROR = 52;
 
     INVALID_PATH_IN_ACL_REQUEST = 53; // Invalid path name in acl request.
@@ -307,6 +296,19 @@ enum Status {
 
     INVALID_PART = 55;
     INVALID_PART_ORDER = 56;
+    SCM_GET_PIPELINE_EXCEPTION = 57;
+    INVALID_BUCKET_NAME = 58;
+
+    CANNOT_CREATE_DIRECTORY_AT_ROOT = 59;
+    DIRECTORY_ALREADY_EXISTS = 60;
+
+    INVALID_VOLUME_NAME = 61;
+
+    PARTIAL_DELETE = 62;
+
+    DETECTED_LOOP_IN_BUCKET_LINKS = 63;
+
+    NOT_SUPPORTED_OPERATION = 64;
 }
 
 /**
@@ -325,6 +327,22 @@ message ListTrashResponse {
   repeated RepeatedKeyInfo deletedKeys = 1;
 }
 
+/**
+    This command acts as a recover command for deleted keys that are still
+    in deleted table on Ozone Manager.
+*/
+
+message RecoverTrashRequest {
+    required string volumeName = 1;
+    required string bucketName = 2;
+    required string keyName = 3;
+    required string destinationBucket = 4;
+}
+
+message RecoverTrashResponse {
+    required bool response = 1;
+}
+
 message VolumeInfo {
     required string adminName = 1;
     required string ownerName = 2;
@@ -335,6 +353,7 @@ message VolumeInfo {
     optional uint64 creationTime = 7;
     optional uint64 objectID = 8;
     optional uint64 updateID = 9;
+    optional uint64 modificationTime = 10;
 }
 
 /**
@@ -354,6 +373,7 @@ message UserInfo {
 */
 message UpdateGetDelegationTokenRequest {
     required GetDelegationTokenResponseProto getDelegationTokenResponse = 1;
+    optional uint64 tokenRenewInterval = 2;
 }
 
 /**
@@ -391,10 +411,11 @@ message SetVolumePropertyRequest {
     required string volumeName = 1;
     optional string ownerName = 2;
     optional uint64 quotaInBytes = 3;
+    optional uint64 modificationTime = 4;
 }
 
 message SetVolumePropertyResponse {
-
+    optional bool response = 1;
 }
 
 /**
@@ -464,6 +485,11 @@ message BucketInfo {
     optional uint64 creationTime = 6;
     repeated hadoop.hdds.KeyValue metadata = 7;
     optional BucketEncryptionInfoProto beinfo = 8;
+    optional uint64 objectID = 9;
+    optional uint64 updateID = 10;
+    optional uint64 modificationTime = 11;
+    optional string sourceVolume = 12;
+    optional string sourceBucket = 13;
 }
 
 enum StorageTypeProto {
@@ -539,6 +565,8 @@ message PrefixInfo {
     required string name = 1;
     repeated OzoneAclInfo acls = 2;
     repeated hadoop.hdds.KeyValue metadata = 3;
+    optional uint64 objectID = 4;
+    optional uint64 updateID = 5;
 }
 
 message OzoneObj {
@@ -676,6 +704,9 @@ message KeyArgs {
     // request type.
     optional uint64 modificationTime = 13;
     optional bool sortDatanodes = 14;
+
+    // This will be set by leader OM in HA and update the original request.
+    optional FileEncryptionInfoProto fileEncryptionInfo = 15;
 }
 
 message KeyLocation {
@@ -714,6 +745,8 @@ message KeyInfo {
     repeated hadoop.hdds.KeyValue metadata = 11;
     optional FileEncryptionInfoProto fileEncryptionInfo = 12;
     repeated OzoneAclInfo acls = 13;
+    optional uint64 objectID = 14;
+    optional uint64 updateID = 15;
 }
 
 message RepeatedKeyInfo {
@@ -721,7 +754,10 @@ message RepeatedKeyInfo {
 }
 
 message OzoneFileStatusProto {
-    required hadoop.fs.FileStatusProto status = 1;
+    optional KeyInfo keyInfo = 2;
+    optional uint64 blockSize = 3;
+    optional bool isDirectory = 4;
+
 }
 
 message GetFileStatusRequest {
@@ -817,6 +853,21 @@ message DeleteKeyRequest {
     required KeyArgs keyArgs = 1;
 }
 
+message DeleteKeysRequest {
+    optional DeleteKeyArgs deleteKeys = 1;
+}
+
+message DeleteKeyArgs {
+    required string volumeName = 1;
+    required string bucketName = 2;
+    repeated string keys = 3;
+}
+
+message DeleteKeysResponse {
+    optional DeleteKeyArgs unDeletedKeys = 1;
+    optional bool status = 2;
+}
+
 message DeleteKeyResponse {
 
     optional KeyInfo keyInfo = 2;
@@ -826,8 +877,16 @@ message DeleteKeyResponse {
     optional uint64 openVersion = 4;
 }
 
+message DeletedKeys {
+    required string volumeName = 1;
+    required string bucketName = 2;
+    repeated string keys = 3;
+}
+
+
+
 message PurgeKeysRequest {
-    repeated string keys = 1;
+    repeated DeletedKeys deletedKeys = 1;
 }
 
 message PurgeKeysResponse {
@@ -837,7 +896,7 @@ message PurgeKeysResponse {
 message OMTokenProto {
     enum Type {
       DELEGATION_TOKEN = 1;
-      S3TOKEN = 2;
+      S3AUTHINFO = 2;
     };
     required Type   type           = 1;
     optional uint32 version        = 2;
@@ -853,6 +912,7 @@ message OMTokenProto {
     optional string accessKeyId    = 12;
     optional string signature      = 13;
     optional string strToSign      = 14;
+    optional string omServiceId    = 15;
 }
 
 message SecretKeyProto {
@@ -941,53 +1001,6 @@ message ServiceInfo {
     optional OMRoleInfo omRole = 4;
 }
 
-message S3CreateBucketRequest {
-    required string userName = 1;
-    required string s3bucketname = 2;
-    // This will be set during OM HA by one of the OM node. In future if more
-    // data fields are required to create volume/bucket we can add them to
-    // this. This is the reason for creating a new message type for this.
-    // S3CreateBucket means create volume from userName and create bucket
-    // with s3BucketName.
-    optional S3CreateVolumeInfo s3CreateVolumeInfo = 3;
-}
-
-message S3CreateVolumeInfo {
-    // Creation time set in preExecute on one of the OM node.
-    required uint64 creationTime = 1;
-}
-
-message S3CreateBucketResponse {
-
-}
-
-message S3DeleteBucketRequest {
-    required string s3bucketName = 1;
-}
-
-message S3DeleteBucketResponse {
-
-}
-
-message S3BucketInfoRequest {
-    required string s3bucketName = 1;
-}
-message S3BucketInfoResponse {
-
-    optional string ozoneMapping = 2;
-}
-
-message S3ListBucketsRequest {
-    required string userName = 1;
-    optional string startKey = 2;
-    optional string prefix = 3;
-    optional int32 count = 4;
-}
-
-message S3ListBucketsResponse {
-   repeated BucketInfo bucketInfo = 2;
-}
-
 message MultipartInfoInitiateRequest {
     required KeyArgs keyArgs = 1;
 
@@ -1006,6 +1019,8 @@ message MultipartKeyInfo {
     required hadoop.hdds.ReplicationType type = 3;
     required hadoop.hdds.ReplicationFactor factor = 4;
     repeated PartKeyInfo partKeyInfoList = 5;
+    optional uint64 objectID = 6;
+    optional uint64 updateID = 7;
 }
 
 message PartKeyInfo {
