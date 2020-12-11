@@ -3,7 +3,7 @@ package main
 import (
 	"fmt"
 	"github.com/elek/ozone-go/api"
-	"github.com/elek/ozone-go/api/common"
+
 	"github.com/hanwen/go-fuse/fuse"
 	"github.com/hanwen/go-fuse/fuse/nodefs"
 	"github.com/hanwen/go-fuse/fuse/pathfs"

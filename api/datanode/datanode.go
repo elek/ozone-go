@@ -2,16 +2,13 @@ package datanode
 
 import (
 	"context"
-	"encoding/binary"
-	"encoding/hex"
 	"fmt"
-	"github.com/elek/ozone-go/api/common"
-	"github.com/elek/ozone-go/api/proto/datanode"
+	dnapi "github.com/elek/ozone-go/api/proto/datanode"
+	"github.com/elek/ozone-go/api/proto/hdds"
 	"github.com/elek/ozone-go/api/proto/ratis"
-	protobuf "github.com/golang/protobuf/proto"
 	"google.golang.org/grpc"
 	"io"
-	"strings"
+	"strconv"
 )
 
 type ChunkInfo struct {
@@ -21,14 +18,22 @@ type ChunkInfo struct {
 }
 
 type DatanodeClient struct {
-	client          *ratis.RaftClientProtocolService_UnorderedClient
+	ratisClient        *ratis.RaftClientProtocolService_UnorderedClient
+	ratisReceiver      chan ratis.RaftClientReplyProto
+	standaloneClient   *dnapi.XceiverClientProtocolService_SendClient
+	standaloneReceiver chan dnapi.ContainerCommandResponseProto
+
 	ctx             context.Context
-	datanodes       []common.DatanodeDetails
-	currentDatanode common.DatanodeDetails
+	datanodes       []*hdds.DatanodeDetailsProto
+	currentDatanode hdds.DatanodeDetailsProto
 	grpcConnection  *grpc.ClientConn
-	pipelineId      []byte
+	pipelineId      *hdds.PipelineID
 	memberIndex     int
-	receiver        chan ratis.RaftClientReplyProto
+}
+
+func (dn *DatanodeClient) GetCurrentDnUUid() *string {
+	uid := dn.currentDatanode.GetUuid()
+	return &uid
 }
 
 func (dnClient *DatanodeClient) connectToNext() error {
@@ -39,45 +44,55 @@ func (dnClient *DatanodeClient) connectToNext() error {
 	if dnClient.memberIndex == len(dnClient.datanodes) {
 		dnClient.memberIndex = 0
 	}
-	dnClient.currentDatanode = dnClient.datanodes[dnClient.memberIndex]
-	address := dnClient.datanodes[dnClient.memberIndex].HostAndPort()
+	selectedDatanode := dnClient.datanodes[dnClient.memberIndex]
+	dnClient.currentDatanode = *selectedDatanode
+
+	standalonePort := 0
+	for _, port := range dnClient.currentDatanode.Ports {
+		if *port.Name == "STANDALONE" {
+			standalonePort = int(*port.Value)
+		}
+	}
+
+	address := *dnClient.currentDatanode.IpAddress + ":" + strconv.Itoa(standalonePort)
 	println("Connecting to the " + address)
 	conn, err := grpc.Dial(address, grpc.WithInsecure(), grpc.WithBlock())
 	if err != nil {
 		return err
 	}
-	dnClient.receiver = make(chan ratis.RaftClientReplyProto)
-	client, err := ratis.NewRaftClientProtocolServiceClient(conn).Unordered(dnClient.ctx)
-	if err != nil {
-		panic(err)
-	}
-	dnClient.client = &client
-	go dnClient.Receiver()
+
+	dnClient.ratisReceiver = make(chan ratis.RaftClientReplyProto)
+	dnClient.standaloneReceiver = make(chan dnapi.ContainerCommandResponseProto)
+
+	client, err := dnapi.NewXceiverClientProtocolServiceClient(conn).Send(dnClient.ctx)
+	dnClient.standaloneClient = &client
+	//
+	//client, err := ratis.NewRaftClientProtocolServiceClient(conn).Unordered(dnClient.ctx)
+	//if err != nil {
+	//	panic(err)
+	//}
+	//dnClient.ratisClient = &client
+	//go dnClient.RaftReceiver()
+	go dnClient.StandaloneReceive()
 	return nil
 }
 
-func CreateDatanodeClient(pipeline common.Pipeline) (*DatanodeClient, error) {
-	pipelineId, err := hex.DecodeString(strings.ReplaceAll(pipeline.ID, "-", ""))
-	if err != nil {
-		return nil, err
-	}
-
+func CreateDatanodeClient(pipeline *hdds.Pipeline) (*DatanodeClient, error) {
 	dnClient := &DatanodeClient{
 		ctx:         context.Background(),
-		pipelineId:  pipelineId,
+		pipelineId:  pipeline.Id,
 		datanodes:   pipeline.Members,
 		memberIndex: -1,
 	}
-	err = dnClient.connectToNext()
+	err := dnClient.connectToNext()
 	if err != nil {
 		return nil, err
 	}
 	return dnClient, nil
 }
-func (dnClient *DatanodeClient) Receiver() {
-
+func (dnClient *DatanodeClient) RaftReceiver() {
 	for {
-		proto, err := (*dnClient.client).Recv()
+		proto, err := (*dnClient.ratisClient).Recv()
 		if err == io.EOF {
 			return
 		}
@@ -85,39 +100,76 @@ func (dnClient *DatanodeClient) Receiver() {
 			fmt.Println(err)
 			return
 		}
-		dnClient.receiver <- *proto
+		dnClient.ratisReceiver <- *proto
 	}
 }
 
-func (dnClient *DatanodeClient) ReadChunk(id common.BlockID, info ChunkInfo) ([]byte, error) {
-	result := make([]byte, 0)
-	blockIdProto := datanode.DatanodeBlockID{
-		ContainerID: &id.ContainerId,
-		LocalID:     &id.LocalId,
-	}
-
+func (dnClient *DatanodeClient) CreateAndWriteChunk(id *dnapi.DatanodeBlockID, blockOffset uint64, buffer []byte, length uint64) (dnapi.ChunkInfo, error) {
 	bpc := uint32(12)
-	checksumType := datanode.ChecksumType_NONE
-	checksumDataProto := datanode.ChecksumData{
+	checksumType := dnapi.ChecksumType_NONE
+	checksumDataProto := dnapi.ChecksumData{
 		Type:             &checksumType,
 		BytesPerChecksum: &bpc,
 	}
-	chunkInfoProto := datanode.ChunkInfo{
+	chunkName := "chunk"
+	chunkInfoProto := dnapi.ChunkInfo{
+		ChunkName:    &chunkName,
+		Offset:       &blockOffset,
+		Len:          &length,
+		ChecksumData: &checksumDataProto,
+	}
+	return dnClient.WriteChunk(id, chunkInfoProto, buffer[0:length])
+}
+
+func (dnClient *DatanodeClient) WriteChunk(id *dnapi.DatanodeBlockID, info dnapi.ChunkInfo, data []byte) (dnapi.ChunkInfo, error) {
+
+	req := dnapi.WriteChunkRequestProto{
+		BlockID:   id,
+		ChunkData: &info,
+		Data:      data,
+	}
+	commandType := dnapi.Type_WriteChunk
+	uuid := dnClient.currentDatanode.GetUuid()
+	proto := dnapi.ContainerCommandRequestProto{
+		CmdType:      &commandType,
+		WriteChunk:   &req,
+		ContainerID:  id.ContainerID,
+		DatanodeUuid: &uuid,
+	}
+
+	_, err := dnClient.sendDatanodeCommand(proto)
+	if err != nil {
+		return info, err
+	}
+	return info, nil
+}
+
+func (dnClient *DatanodeClient) ReadChunk(id *dnapi.DatanodeBlockID, info ChunkInfo) ([]byte, error) {
+	result := make([]byte, 0)
+
+	bpc := uint32(12)
+	checksumType := dnapi.ChecksumType_NONE
+	checksumDataProto := dnapi.ChecksumData{
+		Type:             &checksumType,
+		BytesPerChecksum: &bpc,
+	}
+	chunkInfoProto := dnapi.ChunkInfo{
 		ChunkName:    &info.Name,
 		Offset:       &info.Offset,
 		Len:          &info.Len,
 		ChecksumData: &checksumDataProto,
 	}
-	req := datanode.ReadChunkRequestProto{
-		BlockID:   &blockIdProto,
+	req := dnapi.ReadChunkRequestProto{
+		BlockID:   id,
 		ChunkData: &chunkInfoProto,
 	}
-	commandType := datanode.Type_ReadChunk
-	proto := datanode.ContainerCommandRequestProto{
+	commandType := dnapi.Type_ReadChunk
+	uuid := dnClient.currentDatanode.GetUuid()
+	proto := dnapi.ContainerCommandRequestProto{
 		CmdType:      &commandType,
 		ReadChunk:    &req,
-		ContainerID:  &id.ContainerId,
-		DatanodeUuid: &dnClient.currentDatanode.ID,
+		ContainerID:  id.ContainerID,
+		DatanodeUuid: &uuid,
 	}
 
 	resp, err := dnClient.sendDatanodeCommand(proto)
@@ -127,22 +179,44 @@ func (dnClient *DatanodeClient) ReadChunk(id common.BlockID, info ChunkInfo) ([]
 	return resp.GetReadChunk().Data, nil
 }
 
-func (dnClient *DatanodeClient) GetBlock(id common.BlockID) ([]ChunkInfo, error) {
-	result := make([]ChunkInfo, 0)
-	blockIdProto := datanode.DatanodeBlockID{
-		ContainerID: &id.ContainerId,
-		LocalID:     &id.LocalId,
+func (dnClient *DatanodeClient) PutBlock(id *dnapi.DatanodeBlockID, chunks []*dnapi.ChunkInfo) error {
+
+	flags := int64(0)
+	req := dnapi.PutBlockRequestProto{
+		BlockData: &dnapi.BlockData{
+			BlockID:  id,
+			Flags:    &flags,
+			Metadata: make([]*dnapi.KeyValue, 0),
+			Chunks:   chunks,
+		},
+	}
+	commandType := dnapi.Type_PutBlock
+	proto := dnapi.ContainerCommandRequestProto{
+		CmdType:      &commandType,
+		PutBlock:     &req,
+		ContainerID:  id.ContainerID,
+		DatanodeUuid: dnClient.GetCurrentDnUUid(),
 	}
 
-	req := datanode.GetBlockRequestProto{
-		BlockID: &blockIdProto,
+	_, err := dnClient.sendDatanodeCommand(proto)
+	if err != nil {
+		return err
 	}
-	commandType := datanode.Type_GetBlock
-	proto := datanode.ContainerCommandRequestProto{
+	return nil
+}
+
+func (dnClient *DatanodeClient) GetBlock(id *dnapi.DatanodeBlockID) ([]ChunkInfo, error) {
+	result := make([]ChunkInfo, 0)
+
+	req := dnapi.GetBlockRequestProto{
+		BlockID: id,
+	}
+	commandType := dnapi.Type_GetBlock
+	proto := dnapi.ContainerCommandRequestProto{
 		CmdType:      &commandType,
 		GetBlock:     &req,
-		ContainerID:  &id.ContainerId,
-		DatanodeUuid: &dnClient.currentDatanode.ID,
+		ContainerID:  id.ContainerID,
+		DatanodeUuid: dnClient.GetCurrentDnUUid(),
 	}
 
 	resp, err := dnClient.sendDatanodeCommand(proto)
@@ -159,82 +233,6 @@ func (dnClient *DatanodeClient) GetBlock(id common.BlockID) ([]ChunkInfo, error)
 	return result, nil
 }
 
-func (dnClient *DatanodeClient) sendDatanodeCommand(proto datanode.ContainerCommandRequestProto) (datanode.ContainerCommandResponseProto, error) {
-	group := ratis.RaftGroupIdProto{
-		Id: dnClient.pipelineId,
-	}
-	request := ratis.RaftRpcRequestProto{
-		RequestorId: []byte{0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 0, 1, 2, 3, 4, 5},
-		ReplyId:     []byte{0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 0, 1, 2, 3, 4, 5},
-		RaftGroupId: &group,
-		CallId:      12,
-	}
-	bytes, err := protobuf.Marshal(&proto)
-	if err != nil {
-		return datanode.ContainerCommandResponseProto{}, err
-	}
-
-	lengthHeader := make([]byte, 4)
-	binary.BigEndian.PutUint32(lengthHeader, uint32(len(bytes)))
-
-	message := ratis.ClientMessageEntryProto{
-		Content: append(lengthHeader, bytes...),
-	}
-	readRequestType := ratis.ReadRequestTypeProto{}
-	readType := ratis.RaftClientRequestProto_Read{
-		Read: &readRequestType,
-	}
-	raft := ratis.RaftClientRequestProto{
-		RpcRequest: &request,
-		Message:    &message,
-		Type:       &readType,
-	}
-	resp, err := dnClient.sendRatisMessage(raft)
-	if err != nil {
-		return datanode.ContainerCommandResponseProto{}, err
-	}
-
-	containerResponse := datanode.ContainerCommandResponseProto{}
-	err = protobuf.Unmarshal(resp.Message.Content, &containerResponse)
-	if err != nil {
-		return containerResponse, err
-	}
-	return containerResponse, nil
-}
-func (dnClient *DatanodeClient) sendRatisMessage(request ratis.RaftClientRequestProto) (ratis.RaftClientReplyProto, error) {
-	resp, err := dnClient.sendRatisMessageToServer(request)
-	if err != nil {
-		return ratis.RaftClientReplyProto{}, err
-	}
-	if resp.GetNotLeaderException() != nil {
-		err = dnClient.connectToNext()
-		if err != nil {
-			return ratis.RaftClientReplyProto{}, err
-		}
-		resp, err = dnClient.sendRatisMessageToServer(request)
-		if err != nil {
-			return ratis.RaftClientReplyProto{}, err
-		}
-	}
-	if resp.GetNotLeaderException() != nil {
-		err = dnClient.connectToNext()
-		if err != nil {
-			return ratis.RaftClientReplyProto{}, err
-		}
-		resp, err = dnClient.sendRatisMessageToServer(request)
-		if err != nil {
-			return ratis.RaftClientReplyProto{}, err
-		}
-	}
-	return resp, nil
-}
-
-func (dnClient *DatanodeClient) sendRatisMessageToServer(request ratis.RaftClientRequestProto) (ratis.RaftClientReplyProto, error) {
-
-	err := (*dnClient.client).Send(&request)
-	if err != nil {
-		return ratis.RaftClientReplyProto{}, err
-	}
-	resp := <-dnClient.receiver
-	return resp, err
+func (dnClient *DatanodeClient) sendDatanodeCommand(proto dnapi.ContainerCommandRequestProto) (dnapi.ContainerCommandResponseProto, error) {
+	return dnClient.sendStandaloneDatanodeCommand(proto)
 }

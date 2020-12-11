@@ -33,10 +33,12 @@ func (om *OmClient) ListVolumes() ([]common.Volume, error) {
 }
 
 func (om *OmClient) CreateVolume(name string) error {
+	onegig := uint64(1024 * 1024 * 1024)
 	volumeInfo := ozone_proto.VolumeInfo{
-		AdminName: ptr("admin"),
-		OwnerName: ptr("admin"),
-		Volume:    ptr(name),
+		AdminName:    ptr("admin"),
+		OwnerName:    ptr("admin"),
+		Volume:       ptr(name),
+		QuotaInBytes: &onegig,
 	}
 	req := ozone_proto.CreateVolumeRequest{
 		VolumeInfo: &volumeInfo,
