@@ -66,6 +66,29 @@ func (om *OmClient) ListKeys(volume string, bucket string) ([]*ozone_proto.KeyIn
 
 }
 
+func (om *OmClient) AllocateBlock(volume string, bucket string, key string, clientID *uint64) (*ozone_proto.AllocateBlockResponse,error) {
+	req := ozone_proto.AllocateBlockRequest{
+		KeyArgs: &ozone_proto.KeyArgs{
+			VolumeName: &volume,
+			BucketName: &bucket,
+			KeyName:    &key,
+		},
+		ClientID: clientID,
+	}
+
+	msgType := ozone_proto.Type_AllocateBlock
+	wrapperRequest := ozone_proto.OMRequest{
+		CmdType:              &msgType,
+		AllocateBlockRequest: &req,
+		ClientId:             &om.clientId,
+	}
+	resp, err := om.submitRequest(&wrapperRequest)
+	if err != nil {
+		return nil, err
+	}
+	return resp.AllocateBlockResponse, nil
+}
+
 func (om *OmClient) CreateKey(volume string, bucket string, key string) (*ozone_proto.CreateKeyResponse, error) {
 	req := ozone_proto.CreateKeyRequest{
 		KeyArgs: &ozone_proto.KeyArgs{

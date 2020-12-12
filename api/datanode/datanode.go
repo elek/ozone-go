@@ -2,6 +2,7 @@ package datanode
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	dnapi "github.com/elek/ozone-go/api/proto/datanode"
 	"github.com/elek/ozone-go/api/proto/hdds"
@@ -111,7 +112,7 @@ func (dnClient *DatanodeClient) CreateAndWriteChunk(id *dnapi.DatanodeBlockID, b
 		Type:             &checksumType,
 		BytesPerChecksum: &bpc,
 	}
-	chunkName := "chunk"
+	chunkName := fmt.Sprintf("chunk_%d", blockOffset)
 	chunkInfoProto := dnapi.ChunkInfo{
 		ChunkName:    &chunkName,
 		Offset:       &blockOffset,
@@ -176,6 +177,9 @@ func (dnClient *DatanodeClient) ReadChunk(id *dnapi.DatanodeBlockID, info ChunkI
 	if err != nil {
 		return result, err
 	}
+	if resp.GetResult() != dnapi.Result_SUCCESS {
+		return nil, errors.New(resp.GetResult().String() + " " + resp.GetMessage())
+	}
 	return resp.GetReadChunk().Data, nil
 }
 
@@ -235,4 +239,8 @@ func (dnClient *DatanodeClient) GetBlock(id *dnapi.DatanodeBlockID) ([]ChunkInfo
 
 func (dnClient *DatanodeClient) sendDatanodeCommand(proto dnapi.ContainerCommandRequestProto) (dnapi.ContainerCommandResponseProto, error) {
 	return dnClient.sendStandaloneDatanodeCommand(proto)
+}
+
+func (dn *DatanodeClient) Close() {
+	(*dn.standaloneClient).CloseSend()
 }

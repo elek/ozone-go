@@ -1,4 +1,4 @@
-module github.com/elek/ozone-go/lib
+ module github.com/elek/ozone-go/lib
 
 go 1.13
 

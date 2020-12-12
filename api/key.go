@@ -47,6 +47,7 @@ func (ozoneClient *OzoneClient) InfoKey(volume string, bucket string, key string
 
 func (ozoneClient *OzoneClient) GetKey(volume string, bucket string, key string, destination io.Writer) (common.Key, error) {
 	keyInfo, err := ozoneClient.omClient.GetKey(volume, bucket, key)
+
 	if err != nil {
 		return common.Key{}, err
 	}
@@ -56,23 +57,25 @@ func (ozoneClient *OzoneClient) GetKey(volume string, bucket string, key string,
 	}
 
 	if len(keyInfo.KeyLocationList[0].KeyLocations) == 0 {
-		return common.Key{}, errors.New("Key locatino doesn't have any datanode for key " + volume + "/" + bucket + "/" + key)
+		return common.Key{}, errors.New("Key location doesn't have any datanode for key " + volume + "/" + bucket + "/" + key)
 	}
-	location := keyInfo.KeyLocationList[0].KeyLocations[0]
-	pipeline := location.Pipeline
+	for _, location := range keyInfo.KeyLocationList[0].KeyLocations {
+		pipeline := location.Pipeline
 
-	dnBlockId := ConvertBlockId(location.BlockID)
-	dnClient, err := datanode.CreateDatanodeClient(pipeline)
-	chunks, err := dnClient.GetBlock(dnBlockId)
-	if err != nil {
-		return common.Key{}, err
-	}
-	for _, chunk := range chunks {
-		data, err := dnClient.ReadChunk(dnBlockId, chunk)
+		dnBlockId := ConvertBlockId(location.BlockID)
+		dnClient, err := datanode.CreateDatanodeClient(pipeline)
+		chunks, err := dnClient.GetBlock(dnBlockId)
 		if err != nil {
 			return common.Key{}, err
 		}
-		destination.Write(data)
+		for _, chunk := range chunks {
+			data, err := dnClient.ReadChunk(dnBlockId, chunk)
+			if err != nil {
+				return common.Key{}, err
+			}
+			destination.Write(data)
+		}
+		dnClient.Close()
 	}
 	return common.Key{}, nil
 }
@@ -96,40 +99,80 @@ func (ozoneClient *OzoneClient) PutKey(volume string, bucket string, key string,
 	pipeline := location.Pipeline
 
 	dnClient, err := datanode.CreateDatanodeClient(pipeline)
-
-	buffer := make([]byte, 4096)
-
-	count, err := source.Read(buffer)
 	if err != nil {
 		return common.Key{}, err
 	}
+
+	chunkSize := 4096
+	buffer := make([]byte, chunkSize)
+
 	chunks := make([]*dnproto.ChunkInfo, 0)
-	size := uint64(0)
+	keySize := uint64(0)
 
 	locations := make([]*omproto.KeyLocation, 0)
 
-	if count > 0 {
-		blockId := ConvertBlockId(location.BlockID)
-		chunk, err := dnClient.CreateAndWriteChunk(blockId, 0, buffer, uint64(count))
-		if err != nil {
-			return common.Key{}, err
+	blockId := ConvertBlockId(location.BlockID)
+	eof := false
+
+	for ; ; {
+		blockOffset := uint64(0)
+		for i := 0; i < 64; i++ {
+			count, err := source.Read(buffer)
+			if err == io.EOF {
+				eof = true
+			} else if err != nil {
+				return common.Key{}, err
+			}
+			if count > 0 {
+				chunk, err := dnClient.CreateAndWriteChunk(blockId, blockOffset, buffer[0:count], uint64(count))
+				if err != nil {
+					return common.Key{}, err
+				}
+				blockOffset += uint64(count)
+				keySize += uint64(count)
+				chunks = append(chunks, &chunk)
+			}
+			if eof {
+				break
+			}
 		}
-		size += uint64(count)
-		chunks = append(chunks, &chunk)
+
 		err = dnClient.PutBlock(blockId, chunks)
 		if err != nil {
 			return common.Key{}, err
 		}
-		zero := uint64(0)
-		locations = append(locations, &omproto.KeyLocation{
-			BlockID:  location.BlockID,
-			Pipeline: location.Pipeline,
-			Length:   &size,
-			Offset:   &zero,
-		})
-	}
+		if eof {
+			break
+		}
 
-	ozoneClient.omClient.CommitKey(volume, bucket, key, createKey.ID, locations, size)
+		//get new block and reset counters
+
+		nextBlockResponse, err := ozoneClient.omClient.AllocateBlock(volume, bucket, key, createKey.ID)
+		if err != nil {
+			return common.Key{}, err
+		}
+
+		dnClient.Close()
+		location = nextBlockResponse.KeyLocation
+		pipeline = location.Pipeline
+		dnClient, err = datanode.CreateDatanodeClient(pipeline)
+		if err != nil {
+			return common.Key{}, err
+		}
+		blockId = ConvertBlockId(location.BlockID)
+		blockOffset = 0
+		chunks = make([]*dnproto.ChunkInfo, 0)
+
+	}
+	zero := uint64(0)
+	locations = append(locations, &omproto.KeyLocation{
+		BlockID:  location.BlockID,
+		Pipeline: location.Pipeline,
+		Length:   &keySize,
+		Offset:   &zero,
+	})
+
+	ozoneClient.omClient.CommitKey(volume, bucket, key, createKey.ID, locations, keySize)
 	return common.Key{}, nil
 }
 
