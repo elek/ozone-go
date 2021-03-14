@@ -25,6 +25,7 @@ import (
 	uuid "github.com/nu7hatch/gouuid"
 	"net"
 	"strconv"
+	"sync"
 )
 
 var OM_PROTOCOL = "org.apache.hadoop.ozone.om.protocol.OzoneManagerProtocol"
@@ -33,6 +34,7 @@ type OmClient struct {
 	OmHost   string
 	client   *hadoop_ipc_client.Client
 	clientId string
+	mu       sync.Mutex
 }
 
 func CreateOmClient(omhost string) OmClient {
@@ -199,7 +201,9 @@ func ptr(s string) *string {
 
 func (om *OmClient) submitRequest(request *ozone_proto.OMRequest, ) (*ozone_proto.OMResponse, error) {
 	wrapperResponse := ozone_proto.OMResponse{}
+	om.mu.Lock()
 	err := om.client.Call(gohadoop.GetCalleeRPCRequestHeaderProto(&OM_PROTOCOL), request, &wrapperResponse)
+	om.mu.Unlock()
 	if err != nil {
 		return nil, err
 	}
