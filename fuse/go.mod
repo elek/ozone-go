@@ -3,9 +3,11 @@ module github.com/elek/ozone-go/lib
 go 1.13
 
 require (
-	github.com/elek/ozone-go/api v0.0.0-20180911220305-26e67e76b6c3
+	github.com/cpuguy83/go-md2man/v2 v2.0.0 // indirect
+	github.com/elek/ozone-go/api v0.0.0-20201212100630-cee64fa835db
 	github.com/hanwen/go-fuse v1.0.0
-	github.com/urfave/cli v1.22.1
+	github.com/russross/blackfriday/v2 v2.1.0 // indirect
+	github.com/urfave/cli v1.22.5
 )
 
 replace github.com/elek/ozone-go/api => ../api

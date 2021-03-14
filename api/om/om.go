@@ -72,7 +72,7 @@ func (om *OmClient) GetKey(volume string, bucket string, key string) (*ozone_pro
 		return nil, err
 	}
 	keyProto := resp.GetLookupKeyResponse().GetKeyInfo()
-
+	println(keyProto)
 	return keyProto, nil
 }
 
