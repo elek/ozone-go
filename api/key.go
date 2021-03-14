@@ -7,13 +7,12 @@ import (
 	dnproto "github.com/elek/ozone-go/api/proto/datanode"
 	"github.com/elek/ozone-go/api/proto/hdds"
 	omproto "github.com/elek/ozone-go/api/proto/ozone"
-
 	"io"
 )
 
 func (ozoneClient *OzoneClient) ListKeys(volume string, bucket string) ([]common.Key, error) {
 
-	keys, err := ozoneClient.omClient.ListKeys(volume, bucket)
+	keys, err := ozoneClient.OmClient.ListKeys(volume, bucket)
 	if err != nil {
 		return make([]common.Key, 0), err
 	}
@@ -27,7 +26,7 @@ func (ozoneClient *OzoneClient) ListKeys(volume string, bucket string) ([]common
 }
 
 func (ozoneClient *OzoneClient) ListKeysPrefix(volume string, bucket string, prefix string) ([]common.Key, error) {
-	keys, err := ozoneClient.omClient.ListKeysPrefix(volume, bucket, prefix)
+	keys, err := ozoneClient.OmClient.ListKeysPrefix(volume, bucket, prefix)
 	if err != nil {
 		return make([]common.Key, 0), err
 	}
@@ -41,12 +40,12 @@ func (ozoneClient *OzoneClient) ListKeysPrefix(volume string, bucket string, pre
 }
 
 func (ozoneClient *OzoneClient) InfoKey(volume string, bucket string, key string) (common.Key, error) {
-	k, err := ozoneClient.omClient.GetKey(volume, bucket, key)
+	k, err := ozoneClient.OmClient.GetKey(volume, bucket, key)
 	return KeyFromProto(k), err
 }
 
 func (ozoneClient *OzoneClient) GetKey(volume string, bucket string, key string, destination io.Writer) (common.Key, error) {
-	keyInfo, err := ozoneClient.omClient.GetKey(volume, bucket, key)
+	keyInfo, err := ozoneClient.OmClient.GetKey(volume, bucket, key)
 
 	if err != nil {
 		return common.Key{}, err
@@ -89,7 +88,7 @@ func ConvertBlockId(bid *hdds.BlockID) *dnproto.DatanodeBlockID {
 }
 
 func (ozoneClient *OzoneClient) PutKey(volume string, bucket string, key string, source io.Reader) (common.Key, error) {
-	createKey, err := ozoneClient.omClient.CreateKey(volume, bucket, key)
+	createKey, err := ozoneClient.OmClient.CreateKey(volume, bucket, key)
 	if err != nil {
 		return common.Key{}, err
 	}
@@ -147,7 +146,7 @@ func (ozoneClient *OzoneClient) PutKey(volume string, bucket string, key string,
 
 		//get new block and reset counters
 
-		nextBlockResponse, err := ozoneClient.omClient.AllocateBlock(volume, bucket, key, createKey.ID)
+		nextBlockResponse, err := ozoneClient.OmClient.AllocateBlock(volume, bucket, key, createKey.ID)
 		if err != nil {
 			return common.Key{}, err
 		}
@@ -172,7 +171,7 @@ func (ozoneClient *OzoneClient) PutKey(volume string, bucket string, key string,
 		Offset:   &zero,
 	})
 
-	ozoneClient.omClient.CommitKey(volume, bucket, key, createKey.ID, locations, keySize)
+	ozoneClient.OmClient.CommitKey(volume, bucket, key, createKey.ID, locations, keySize)
 	return common.Key{}, nil
 }
 

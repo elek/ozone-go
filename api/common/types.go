@@ -8,10 +8,16 @@ const (
 )
 
 type Volume struct {
-	Name string
+	Name  string
+	Owner string
 }
 
 type Key struct {
 	Name        string
 	Replication ReplicationType
+}
+
+type Bucket struct {
+	Name       string
+	VolumeName string
 }

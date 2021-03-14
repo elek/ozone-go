@@ -3,9 +3,13 @@ package api
 import "github.com/elek/ozone-go/api/common"
 
 func (ozoneClient *OzoneClient) ListVolumes() ([]common.Volume, error) {
-	return ozoneClient.omClient.ListVolumes()
+	return ozoneClient.OmClient.ListVolumes()
 }
 
 func (ozoneClient *OzoneClient) CreateVolume(name string) error {
-	return ozoneClient.omClient.CreateVolume(name)
+	return ozoneClient.OmClient.CreateVolume(name)
+}
+
+func (ozoneClient *OzoneClient) GetVolume(name string) (common.Volume, error) {
+	return ozoneClient.OmClient.GetVolume(name)
 }

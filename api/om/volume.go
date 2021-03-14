@@ -35,8 +35,8 @@ func (om *OmClient) ListVolumes() ([]common.Volume, error) {
 func (om *OmClient) CreateVolume(name string) error {
 	onegig := uint64(1024 * 1024 * 1024)
 	volumeInfo := ozone_proto.VolumeInfo{
-		AdminName:    ptr("admin"),
-		OwnerName:    ptr("admin"),
+		AdminName:    ptr("hadoop"),
+		OwnerName:    ptr("hadoop"),
 		Volume:       ptr(name),
 		QuotaInBytes: &onegig,
 	}
@@ -57,4 +57,28 @@ func (om *OmClient) CreateVolume(name string) error {
 		return err
 	}
 	return nil
+}
+
+func (om *OmClient) GetVolume(name string) (common.Volume, error) {
+	req := ozone_proto.InfoVolumeRequest{
+		VolumeName: &name,
+	}
+
+	cmdType := ozone_proto.Type_InfoVolume
+	wrapperRequest := ozone_proto.OMRequest{
+		CmdType:           &cmdType,
+		InfoVolumeRequest: &req,
+		ClientId:          &om.clientId,
+	}
+
+	resp, err := om.submitRequest(&wrapperRequest)
+	if err != nil {
+		return common.Volume{}, err
+	}
+
+	vol := common.Volume{}
+	vol.Name = *resp.InfoVolumeResponse.VolumeInfo.Volume
+	vol.Owner = *resp.InfoVolumeResponse.VolumeInfo.OwnerName
+
+	return vol, nil
 }

@@ -30,20 +30,19 @@ func (me *OzoneFs) GetAttr(name string, context *fuse.Context) (*fuse.Attr, fuse
 			Mode: fuse.S_IFDIR | 0755,
 		}, fuse.OK
 	}
-
-	key, err := me.ozoneClient.InfoKey(me.Volume, me.Bucket, name)
+	key, err := me.ozoneClient.OmClient.GetKey(me.Volume, me.Bucket, name)
 	if err != nil {
 		fmt.Println("Error with getting key: " + name + " " + err.Error())
 		return nil, fuse.ENOENT
 	}
 
-	if len(key.Locations) > 1 {
+	if len(key.KeyLocationList) > 1 {
 		return &fuse.Attr{
 			Mode: fuse.S_IFDIR | 0755,
 		}, fuse.OK
 	}
 
-	if len(key.Locations) == 1 {
+	if len(key.KeyLocationList) == 1 {
 		return &fuse.Attr{
 			Mode: fuse.S_IFREG | 0644, Size: uint64(len(name))}, fuse.OK
 	}

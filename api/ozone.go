@@ -5,12 +5,12 @@ import (
 )
 
 type OzoneClient struct {
-	omClient *om.OmClient
+	OmClient *om.OmClient
 }
 
 func CreateOzoneClient(omhost string) *OzoneClient {
 	client := om.CreateOmClient(omhost)
 	return &OzoneClient{
-		omClient: &client,
+		OmClient: &client,
 	}
 }
