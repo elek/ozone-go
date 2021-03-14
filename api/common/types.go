@@ -14,6 +14,8 @@ type Volume struct {
 
 type Key struct {
 	Name        string
+	BucketName  string
+	VolumeName  string
 	Replication ReplicationType
 }
 

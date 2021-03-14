@@ -2,7 +2,8 @@ package main
 
 import (
 	"github.com/elek/ozone-go/api"
-	"github.com/elek/ozone-go/api/common"
+	"github.com/elek/ozone-go/api/datanode"
+	ozone_proto "github.com/elek/ozone-go/api/proto/ozone"
 	"github.com/hanwen/go-fuse/fuse"
 	"github.com/hanwen/go-fuse/fuse/nodefs"
 	"time"
@@ -10,10 +11,10 @@ import (
 
 type OzoneFile struct {
 	ozoneClient *api.OzoneClient
-	key         common.Key
+	key         *ozone_proto.KeyInfo
 }
 
-func CreateOzoneFile(ozoneClient *api.OzoneClient, key common.Key) nodefs.File {
+func CreateOzoneFile(ozoneClient *api.OzoneClient, key *ozone_proto.KeyInfo) nodefs.File {
 	return &OzoneFile{
 		ozoneClient: ozoneClient,
 		key:         key,
@@ -32,7 +33,44 @@ func (f *OzoneFile) String() string {
 }
 
 func (f *OzoneFile) Read(buf []byte, off int64) (fuse.ReadResult, fuse.Status) {
-	return nil, fuse.ENOSYS
+	len := uint64(len(buf))
+
+	currentOffset := int64(0)
+	for _, location := range f.key.KeyLocationList[0].KeyLocations {
+		dataLengthInBlock := int64(*location.Length)
+		if currentOffset+dataLengthInBlock < off {
+			//we don't need this block
+			currentOffset += dataLengthInBlock
+		} else {
+			blockOffset := uint64(off - currentOffset)
+
+			pipeline := location.Pipeline
+
+			dnBlockId := api.ConvertBlockId(location.BlockID)
+			dnClient, err := datanode.CreateDatanodeClient(pipeline)
+			defer dnClient.Close()
+			chunks, err := dnClient.GetBlock(dnBlockId)
+			if err != nil {
+				return fuse.ReadResultData([]byte{}), fuse.ENODATA
+			}
+
+			currentBlockOffset := uint64(0)
+			for _, chunk := range chunks {
+				if currentBlockOffset >= blockOffset {
+					data, err := dnClient.ReadChunk(dnBlockId, chunk)
+					if err != nil {
+						return fuse.ReadResultData([]byte{}), fuse.ENODATA
+					}
+					if len > chunk.Len {
+						len = chunk.Len
+					}
+					return fuse.ReadResultData(data[0:len]), 0
+				}
+				currentBlockOffset += chunk.Len
+			}
+		}
+	}
+	return fuse.ReadResultData([]byte{}), 0
 }
 
 func (f *OzoneFile) Write(data []byte, off int64) (uint32, fuse.Status) {
@@ -60,11 +98,16 @@ func (f *OzoneFile) Release() {
 }
 
 func (f *OzoneFile) GetAttr(attr *fuse.Attr) fuse.Status {
+	attr.Size = *f.key.DataSize
+	attr.Mode = fuse.S_IFREG | 0644
+	attr.Blksize = 512
+	attr.Blocks = 1
+	attr.IsDir()
 	return fuse.OK
 }
 
 func (f *OzoneFile) Fsync(flags int) (code fuse.Status) {
-	return fuse.ENOSYS
+	return fuse.OK
 }
 
 func (f *OzoneFile) Utimens(atime *time.Time, mtime *time.Time) fuse.Status {
@@ -76,11 +119,11 @@ func (f *OzoneFile) Truncate(size uint64) fuse.Status {
 }
 
 func (f *OzoneFile) Chown(uid uint32, gid uint32) fuse.Status {
-	return fuse.ENOSYS
+	return fuse.OK
 }
 
 func (f *OzoneFile) Chmod(perms uint32) fuse.Status {
-	return fuse.ENOSYS
+	return fuse.OK
 }
 
 func (f *OzoneFile) Allocate(off uint64, size uint64, mode uint32) (code fuse.Status) {
