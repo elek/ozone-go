@@ -1,17 +1,32 @@
 # Go client for Apache Hadoop Ozone
 
-This repository contains an experimental, proof-of-concept golang client for apache hadoop ozone:
+This repository contains an experimental, proof-of-concept Golang client for Apache Ozone:
 
- * api: the location for the generic golang api
- * lib: sharable C library
- * cli: standalone executable tool
+The repository contains the following sub-modules
 
-** Highly experimental, most of the calls are not implemented. But it shows how can hadoop-rpc/grpc be used from golang.
+ * api: the location for the generic golang api for Apache Ozone
+ * cli: standalone executable tool for main operations (similar to the original `ozone sh`)
+ * lib: proof-of-concept shared C library
+ * python: example python script uses the shared C library
+
+Status:
+
+ * api
+   * main OM metadata operations worked well, but not all the fields are implemented
+   * data read / write are implemented on some level but needs further work
+   * security can be supported by the used Hadoop RPC implementation, but not tested
+ * fuse
+   * first working POC, files are successfully listed and files can be read
+   * write is not implemented at all
+   * requires major work
+  * shared lib / python: very basic example, poc
 
 ## Testing with cli:
 
 ```
-go run cli/ozone/main.go -om 127.0.0.1 volume create vol1
+cd cli
+go build
+./ozone-go --om localhost volume create vol1
 ```
 
 Or you can install it:
@@ -22,12 +37,18 @@ go install ./...
 ozone -om 127.0.0.1 volume create vol1
 ```
 
+## Testing Fuse file system
+
+```
+
+```
+
 ## Testing the python binding
 
 Create the shared library:
 
 ```
-go build -o ozone.so   -buildmode=c-shared lib/lib.go
+go build -o ozone.so -buildmode=c-shared lib/lib.go
 ```
 
 Modify parameters of `python/test.py` (om address) and run it.

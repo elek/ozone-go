@@ -1,3 +1,18 @@
+// Licensed to the Apache Software Foundation (ASF) under one
+// or more contributor license agreements.  See the NOTICE file
+// distributed with this work for additional information
+// regarding copyright ownership.  The ASF licenses this file
+// to you under the Apache License, Version 2.0 (the
+// "License"); you may not use this file except in compliance
+// with the License.  You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
 package main
 
 import (
@@ -103,14 +118,29 @@ func main() {
 			Value:    "localhost",
 			Usage:    "Host (or host:port) address of the OzoneManager",
 		},
+		cli.StringFlag{
+			Name:     "volume",
+			Required: true,
+			Usage:    "Name of the volume to mount",
+		},
+		cli.StringFlag{
+			Name:     "bucket",
+			Required: true,
+			Value:    "localhost",
+			Usage:    "Name of the bucket to mount",
+		},
+		cli.BoolFlag{
+			Name:  "debug",
+			Usage: "Turn on FUSE debug log",
+		},
 	}
 	app.Action = func(c *cli.Context) error {
 		client := api.CreateOzoneClient(c.String("om"))
 
-		fs := &OzoneFs{FileSystem: pathfs.NewDefaultFileSystem(), ozoneClient: client, Volume: "vol1", Bucket: "bucket1"}
+		fs := &OzoneFs{FileSystem: pathfs.NewDefaultFileSystem(), ozoneClient: client, Volume: c.String("volume"), Bucket: c.String("bucket")}
 		nfs := pathfs.NewPathNodeFs(fs, nil)
 		opts := nodefs.Options{
-			Debug: true,
+			Debug: c.Bool("debug"),
 		}
 		server, _, err := nodefs.MountRoot(c.Args().Get(0), nfs.Root(), &opts)
 		if err != nil {
