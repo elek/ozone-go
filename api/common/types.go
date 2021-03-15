@@ -32,6 +32,7 @@ type Key struct {
 	BucketName  string
 	VolumeName  string
 	Replication ReplicationType
+	Size        uint64
 }
 
 type Bucket struct {

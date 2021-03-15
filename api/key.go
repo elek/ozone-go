@@ -196,6 +196,9 @@ func KeyFromProto(keyProto *omproto.KeyInfo) common.Key {
 	result := common.Key{
 		Name:        *keyProto.KeyName,
 		Replication: replicationType,
+		VolumeName:  *keyProto.VolumeName,
+		BucketName:  *keyProto.BucketName,
+		Size:        *keyProto.DataSize,
 	}
 	return result
 }
