@@ -1,4 +1,4 @@
-# Go client for Apache Hadoop Ozone
+# Go client for Apache Ozone
 
 This repository contains an experimental, proof-of-concept Golang client for Apache Ozone:
 
