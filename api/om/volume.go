@@ -21,14 +21,14 @@ import (
 )
 
 func (om *OmClient) ListVolumes() ([]common.Volume, error) {
-	scope := ozone_proto.ListVolumeRequest_USER_VOLUMES
+	scope := ozone_proto.ListVolumeRequest_VOLUMES_BY_USER
 	req := ozone_proto.ListVolumeRequest{
 		Scope:    &scope,
-		UserName: ptr("admin"),
+		UserName: ptr("hadoop"),
 		Prefix:   ptr(""),
 	}
 
-	listKeys := ozone_proto.Type_ListKeys
+	listKeys := ozone_proto.Type_ListVolume
 	clientId := "goClient"
 	wrapperRequest := ozone_proto.OMRequest{
 		CmdType:           &listKeys,

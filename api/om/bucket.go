@@ -72,3 +72,34 @@ func (om *OmClient) GetBucket(volume string, bucket string) (common.Bucket, erro
 	return b, nil
 }
 
+func (om *OmClient) ListBucket(volume string) ([]common.Bucket, error) {
+	res := make([]common.Bucket, 0)
+
+	req := ozone_proto.ListBucketsRequest{
+		VolumeName: &volume,
+		StartKey:   ptr(""),
+		Count:      ptri(100),
+	}
+
+	cmdType := ozone_proto.Type_ListBuckets
+	wrapperRequest := ozone_proto.OMRequest{
+		CmdType:            &cmdType,
+		ListBucketsRequest: &req,
+		ClientId:           &om.clientId,
+	}
+
+	resp, err := om.submitRequest(&wrapperRequest)
+	if err != nil {
+		return res, err
+	}
+	for _, b := range resp.ListBucketsResponse.BucketInfo {
+		cb := common.Bucket{
+			Name:       *b.BucketName,
+			VolumeName: *b.VolumeName,
+		}
+		res = append(res, cb)
+	}
+	return res, nil
+}
+
+

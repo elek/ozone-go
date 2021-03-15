@@ -108,6 +108,23 @@ func main() {
 						return nil
 					},
 				},
+				{
+					Name:    "list",
+					Aliases: []string{"ls"},
+					Usage:   "List buckets",
+					Action: func(c *cli.Context) error {
+						ozoneClient := api.CreateOzoneClient(c.GlobalString("om"))
+						address := OzoneObjectAddressFromString(c.Args().Get(0))
+						buckets, err := ozoneClient.ListBucket(*address.Volume)
+						if err != nil {
+							return err
+						}
+						for _, bucket := range buckets {
+							println(bucket.Name)
+						}
+						return nil
+					},
+				},
 			},
 		},
 		{
