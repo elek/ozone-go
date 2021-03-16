@@ -18,5 +18,5 @@ set -e
 DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" >/dev/null 2>&1 && pwd )"
 cd "$DIR" || exit 1
 
-rm ozone-go
+rm ozone-go || true
 go build

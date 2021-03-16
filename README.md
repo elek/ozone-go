@@ -8,6 +8,7 @@ The repository contains the following sub-modules
  * cli: standalone executable tool for main operations (similar to the original `ozone sh`)
  * lib: proof-of-concept shared C library
  * python: example python script uses the shared C library
+ * HA failovoer is missing
 
 Status:
 
