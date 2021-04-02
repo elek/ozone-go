@@ -1,4 +1,4 @@
-#!/usr/bin/env python
+#!/usr/bin/env bash
 # Licensed to the Apache Software Foundation (ASF) under one or more
 # contributor license agreements.  See the NOTICE file distributed with
 # this work for additional information regarding copyright ownership.
@@ -13,15 +13,15 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+set -e
 
-from ctypes import *
-
-lib = cdll.LoadLibrary("../lib/lib")
-
-lib.CreateOmClient.argtypes = [c_char_p]
-lib.CreateOmClient.restype = c_long
-lib.PrintKey.argtypes = [c_long, c_char_p, c_char_p, c_char_p]
-
-client = lib.CreateOmClient(b"localhost")
-print(client)
-lib.PrintKey(client, b"vol1", b"bucket1", b"key1")
+grep --text -r -L \
+   --exclude-dir=.git \
+   --exclude-dir=.idea \
+   --exclude=LICENSE \
+   --exclude=go.sum \
+   --exclude=NOTICE.txt \
+   --exclude=.gitignore \
+   --exclude=README.md \
+   --exclude-dir=api/proto \
+  http://www.apache.org/licenses/LICENSE-2.0
