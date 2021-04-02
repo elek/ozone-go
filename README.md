@@ -1,6 +1,8 @@
 # Go client for Apache Ozone
 
-This repository contains an experimental, proof-of-concept Golang client for Apache Ozone:
+This repository contains an experimental, **proof-of-concept** Golang client for Apache Ozone.
+
+It's not ready yet for using in production / non-production.
 
 The repository contains the following sub-modules
 
@@ -26,7 +28,7 @@ Status:
 
 ```
 cd cli
-go build
+./build.sh
 ./ozone-go --om localhost volume create vol1
 ```
 
@@ -34,14 +36,16 @@ Or you can install it:
 
 ```
 cd cli
-go install ./...
+go install
 ozone -om 127.0.0.1 volume create vol1
 ```
 
 ## Testing Fuse file system
 
 ```
-
+cd fuse
+./build.sh
+./ozone-fuse/ozone-fuse --om localhost --volume vol1 --bucket bucket1 /tmp/bucket1
 ```
 
 ## Testing the python binding
