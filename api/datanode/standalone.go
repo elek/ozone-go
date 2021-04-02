@@ -17,7 +17,7 @@ package datanode
 
 import (
 	"fmt"
-	dnapi "github.com/elek/ozone-go/api/proto/datanode"
+	dnapi "github.com/apache/ozone-go/api/proto/datanode"
 	"io"
 )
 

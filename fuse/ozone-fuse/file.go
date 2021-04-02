@@ -17,9 +17,9 @@
 package main
 
 import (
-	"github.com/elek/ozone-go/api"
-	"github.com/elek/ozone-go/api/datanode"
-	ozone_proto "github.com/elek/ozone-go/api/proto/ozone"
+	"github.com/apache/ozone-go/api"
+	"github.com/apache/ozone-go/api/datanode"
+	ozone_proto "github.com/apache/ozone-go/api/proto/ozone"
 	"github.com/hanwen/go-fuse/fuse"
 	"github.com/hanwen/go-fuse/fuse/nodefs"
 	"time"

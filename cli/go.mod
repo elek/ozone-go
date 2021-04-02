@@ -14,13 +14,13 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-module github.com/elek/ozone-go
+module github.com/apache/ozone-go
 
 go 1.13
 
-replace github.com/elek/ozone-go/api => ../api
+replace github.com/apache/ozone-go/api => ../api
 
 require (
-	github.com/elek/ozone-go/api v0.0.0-20201212100630-cee64fa835db
+	github.com/apache/ozone-go/api v0.0.0-20201212100630-cee64fa835db
 	github.com/urfave/cli v1.22.5
 )

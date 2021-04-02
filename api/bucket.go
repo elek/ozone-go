@@ -15,7 +15,7 @@
 // limitations under the License.
 package api
 
-import "github.com/elek/ozone-go/api/common"
+import "github.com/apache/ozone-go/api/common"
 
 func (ozoneClient *OzoneClient) CreateBucket(volume string, bucket string) error {
 	return ozoneClient.OmClient.CreateBucket(volume, bucket)

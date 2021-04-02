@@ -16,7 +16,7 @@
  * limitations under the License.
  */
 syntax = "proto3";
-option go_package = "github.com/elek/ozone-go/api/proto/ratis";
+option go_package = "github.com/apache/ozone-go/api/proto/ratis";
 
 option java_package = "org.apache.ratis.proto";
 option java_outer_classname = "RaftProtos";

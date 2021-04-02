@@ -15,7 +15,7 @@
 // limitations under the License.
 package api
 
-import "github.com/elek/ozone-go/api/common"
+import "github.com/apache/ozone-go/api/common"
 
 func (ozoneClient *OzoneClient) ListVolumes() ([]common.Volume, error) {
 	return ozoneClient.OmClient.ListVolumes()

@@ -3,7 +3,7 @@ package main
 import (
 	"C"
 	"encoding/json"
-	"github.com/elek/ozone-go/api/om"
+	"github.com/apache/ozone-go/api/om"
 	"math/rand"
 )
 

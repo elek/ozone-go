@@ -22,7 +22,7 @@
  * for what changes are allowed for a *unstable* .proto interface.
  */
 
-option go_package = "github.com/elek/ozone-go/api/proto/hdds";
+option go_package = "github.com/apache/ozone-go/api/proto/hdds";
 option java_package = "org.apache.hadoop.hdds.protocol.proto";
 option java_outer_classname = "HddsProtos";
 option java_generic_services = true;

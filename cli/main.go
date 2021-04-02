@@ -16,11 +16,11 @@
 
 package main
 
-// import "github.com/elek/ozone-go"
+// import "github.com/apache/ozone-go"
 import (
 	"encoding/json"
 	"fmt"
-	"github.com/elek/ozone-go/api"
+	"github.com/apache/ozone-go/api"
 	"github.com/urfave/cli"
 	"os"
 	"strings"

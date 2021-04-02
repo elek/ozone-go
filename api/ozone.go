@@ -16,7 +16,7 @@
 package api
 
 import (
-	"github.com/elek/ozone-go/api/om"
+	"github.com/apache/ozone-go/api/om"
 )
 
 type OzoneClient struct {
